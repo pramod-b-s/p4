@@ -1,35 +1,27 @@
-#include "mfs.h"
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+#include "udp.h"
 
-int main(int argc, char *argv[])
-{
-	if(argc != 3)
-		exit(1);
-	
-	char *hostname = argv[1];
-	int port = atoi(argv[2]);
+#define BUFFER_SIZE (1000)
 
-	MFS_Init(hostname, port);
-	char buffer[MFS_BLOCK_SIZE];
-	MFS_Creat(0, MFS_DIRECTORY, "TestDir");
-	int inode = MFS_Lookup(0, "TestDir");
-	int i = 0;
-	for(;i < 1800; ++i)
-	{
-		char buffer[2000];
-		sprintf(buffer, "file_%d", i);
-		int ret = MFS_Creat(inode, MFS_REGULAR_FILE, buffer);
-		if(ret == 0)
-		{
-			printf("Successfully created: %s", buffer);
-		}else {
-			printf("Failed to create: %s", buffer);
-		}
-	}
+// client code
+int main(int argc, char *argv[]) {
+    struct sockaddr_in addrSnd, addrRcv;
 
-	MFS_Shutdown();
+    int sd = UDP_Open(20000);
+    int rc = UDP_FillSockAddr(&addrSnd, "localhost", 10000);
 
-	return 0;
+    char message[BUFFER_SIZE];
+    sprintf(message, "hello world");
+
+    printf("client:: send message [%s]\n", message);
+    rc = UDP_Write(sd, &addrSnd, message, BUFFER_SIZE);
+    if (rc < 0) {
+	printf("client:: failed to send\n");
+	exit(1);
+    }
+
+    printf("client:: wait for reply...\n");
+    rc = UDP_Read(sd, &addrRcv, message, BUFFER_SIZE);
+    printf("client:: got reply [size:%d contents:(%s)\n", rc, message);
+    return 0;
 }
