@@ -34,8 +34,7 @@ int sendPacket(char *hostname, int port, Net_Packet *sentPacket, Net_Packet *res
     tv.tv_sec=3;
     tv.tv_usec=0;
 
-
-    do {
+    while(1) {
         FD_ZERO(&rfds);
         FD_SET(sd,&rfds);
         UDP_Write(sd, &addr, (char*)sentPacket, sizeof(Net_Packet));
@@ -47,10 +46,11 @@ int sendPacket(char *hostname, int port, Net_Packet *sentPacket, Net_Packet *res
                 UDP_Close(sd);
                 return 0;
             }
-        }else {
+        }
+		else {
             maxTries -= 1;
         }
-    }while(1);
+    };
 }
 
 int MFS_Init(char *hostname, int port) {
@@ -67,7 +67,7 @@ int MFS_Lookup(int pinum, char *name){
 	if(!initialized)
 		return -1;
 	
-	if(checkName(name) < 0)
+	if(strlen(name) > 27)
 		return -1;
 
 	Net_Packet sentPacket;
@@ -144,7 +144,7 @@ int MFS_Creat(int pinum, int type, char *name){
 	if(!initialized)
 		return -1;
 	
-	if(checkName(name) < 0)
+	if(strlen(name) > 27)
 		return -1;
 
 	Net_Packet sentPacket;
@@ -166,7 +166,7 @@ int MFS_Unlink(int pinum, char *name){
 	if(!initialized)
 		return -1;
 	
-	if(checkName(name) < 0)
+	if(strlen(name) > 27)
 		return -1;
 	
 	Net_Packet sentPacket;
@@ -190,11 +190,5 @@ int MFS_Shutdown(){
 	if(sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
 	
-	return 0;
-}
-
-int checkName(char* name) {
-	if(strlen(name) > 27)
-		return -1;
 	return 0;
 }

@@ -28,12 +28,6 @@ int main(int argc, char *argv[])
 			printf("Failed to create: %s", buffer);
 		}
 	}
-	/*printf("Got Inode #: %d\n", inode);
-	strcpy(buffer, "This is some stuff!");
-	MFS_Write(inode, buffer, 0);
-
-	if(MFS_Read(inode, buffer, 0) > -1)
-		printf("Read Message from server:\n%s\n", buffer);*/
 
 	MFS_Shutdown();
 
