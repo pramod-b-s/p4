@@ -14,7 +14,7 @@ int sendToHost(char *hostname, int port, dataPkt *sentPacket, dataPkt *responseP
 	int sd = UDP_Open(0);
 	if (sd < -1)
 	{
-		perror("Error opening connection.\n");
+		perror("Error opening connectioind.\n");
 		return -1;
 	}
 

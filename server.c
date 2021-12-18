@@ -75,7 +75,7 @@ int Startup(int port, char *path)
 		{
 			return -1;
 		}
-		nextBlock = 10;
+		nextBlock = 6;
 
 		for (int i = 0; i < MAX_NUM_INODES; i++)
 		{
@@ -86,16 +86,16 @@ int Startup(int port, char *path)
 		write(fd, inodeMap, sizeof(int) * MAX_NUM_INODES);
 		write(fd, &nextBlock, sizeof(int));
 
-		inode n;
-		n.inodeNum = 0;
-		n.size = MAX_BLK_SIZE;
-		n.type = MFS_DIRECTORY;
-		n.used[0] = 1;
-		n.blocks[0] = nextBlock;
+		inode ind;
+		ind.inodeNum = 0;
+		ind.size = MAX_BLK_SIZE;
+		ind.type = MFS_DIRECTORY;
+		ind.used[0] = 1;
+		ind.blocks[0] = nextBlock;
 		for (int i = 1; i < MAX_DIRECT_PTRS; i++)
 		{
-			n.used[i] = 0;
-			n.blocks[i] = -1;
+			ind.used[i] = 0;
+			ind.blocks[i] = -1;
 		}
 
 		dirDataBlk baseBlock;
@@ -117,7 +117,7 @@ int Startup(int port, char *path)
 		inodeMap[0] = nextBlock;
 
 		lseek(fd, nextBlock * MAX_BLK_SIZE, SEEK_SET);
-		write(fd, &n, sizeof(inode));
+		write(fd, &ind, sizeof(inode));
 		nextBlock++;
 
 		update_checkpoint(0);
@@ -149,36 +149,35 @@ int Startup(int port, char *path)
 
 			switch (packet.fsop)
 			{
+				case LOOKUP:
+					responsePacket.inodeNum = Lookup(packet.inodeNum, packet.name);
+					break;
 
-			case LOOKUP:
-				responsePacket.inodeNum = Lookup(packet.inodeNum, packet.name);
-				break;
+				case STAT:
+					responsePacket.inodeNum = Stat(packet.inodeNum, &(responsePacket.stat));
+					break;
 
-			case STAT:
-				responsePacket.inodeNum = Stat(packet.inodeNum, &(responsePacket.stat));
-				break;
+				case WR:
+					responsePacket.inodeNum = Write(packet.inodeNum, packet.buffer, packet.block);
+					break;
 
-			case WR:
-				responsePacket.inodeNum = Write(packet.inodeNum, packet.buffer, packet.block);
-				break;
+				case RD:
+					responsePacket.inodeNum = Read(packet.inodeNum, responsePacket.buffer, packet.block);
+					break;
 
-			case RD:
-				responsePacket.inodeNum = Read(packet.inodeNum, responsePacket.buffer, packet.block);
-				break;
+				case CREAT:
+					responsePacket.inodeNum = Creat(packet.inodeNum, packet.type, packet.name);
+					break;
 
-			case CREAT:
-				responsePacket.inodeNum = Creat(packet.inodeNum, packet.type, packet.name);
-				break;
+				case UNLINK:
+					responsePacket.inodeNum = Unlink(packet.inodeNum, packet.name);
+					break;
 
-			case UNLINK:
-				responsePacket.inodeNum = Unlink(packet.inodeNum, packet.name);
-				break;
+				case EXIT:
+					break;
 
-			case EXIT:
-				break;
-
-			case RSP:
-				break;
+				case RSP:
+					break;
 			}
 
 			responsePacket.fsop = RSP;
@@ -227,27 +226,27 @@ int Lookup(int pinum, char *name)
 
 int Stat(int inodeNum, MFS_Stat_t *m)
 {
-	inode n;
-	if (get_inode(inodeNum, &n) == -1)
+	inode ind;
+	if (get_inode(inodeNum, &ind) == -1)
 	{
 		return -1;
 	}
 
-	m->type = n.type;
-	m->size = n.size;
+	m->type = ind.type;
+	m->size = ind.size;
 
 	return 0;
 }
 
 int Write(int inodeNum, char *buffer, int block)
 {
-	inode n;
-	if (get_inode(inodeNum, &n) == -1)
+	inode ind;
+	if (get_inode(inodeNum, &ind) == -1)
 	{
 		return -1;
 	}
 
-	if (n.type != MFS_REGULAR_FILE)
+	if (ind.type != MFS_REGULAR_FILE)
 	{
 		return -1;
 	}
@@ -257,13 +256,13 @@ int Write(int inodeNum, char *buffer, int block)
 		return -1;
 	}
 
-	n.size = (block + 1) * MAX_BLK_SIZE > n.size ? (block + 1) * MAX_BLK_SIZE : n.size;
-	n.used[block] = 1;
+	ind.size = (block + 1) * MAX_BLK_SIZE > ind.size ? (block + 1) * MAX_BLK_SIZE : ind.size;
+	ind.used[block] = 1;
 
-	n.blocks[block] = nextBlock + 1;
+	ind.blocks[block] = nextBlock + 1;
 
 	lseek(fd, nextBlock * MAX_BLK_SIZE, SEEK_SET);
-	write(fd, &n, MAX_BLK_SIZE);
+	write(fd, &ind, MAX_BLK_SIZE);
 	inodeMap[inodeNum] = nextBlock;
 	nextBlock++;
 
@@ -277,22 +276,22 @@ int Write(int inodeNum, char *buffer, int block)
 
 int Read(int inodeNum, char *buffer, int block)
 {
-	inode n;
-	if (get_inode(inodeNum, &n) == -1)
+	inode ind;
+	if (get_inode(inodeNum, &ind) == -1)
 	{
 		printf("get_inode failed for inodeNum %d.\n", inodeNum);
 		return -1;
 	}
 
-	if (block < 0 || block >= MAX_DIRECT_PTRS || !n.used[block])
+	if (block < 0 || block >= MAX_DIRECT_PTRS || !ind.used[block])
 	{
 		printf("invalid block.\n");
 		return -1;
 	}
 
-	if (n.type == MFS_REGULAR_FILE)
+	if (ind.type == MFS_REGULAR_FILE)
 	{
-		if (lseek(fd, n.blocks[block] * MAX_BLK_SIZE, SEEK_SET) == -1)
+		if (lseek(fd, ind.blocks[block] * MAX_BLK_SIZE, SEEK_SET) == -1)
 		{
 			perror("Read: lseek:");
 			printf("Read: lseek failed\n");
@@ -307,7 +306,7 @@ int Read(int inodeNum, char *buffer, int block)
 	else
 	{
 		dirDataBlk dirBlk;
-		lseek(fd, n.blocks[block], SEEK_SET);
+		lseek(fd, ind.blocks[block], SEEK_SET);
 		read(fd, &dirBlk, MAX_BLK_SIZE);
 
 		MFS_DirEnt_t entries[MAX_INODE];
@@ -378,23 +377,23 @@ int Creat(int pinum, int type, char *name)
 					lseek(fd, parent.blocks[b] * MAX_BLK_SIZE, SEEK_SET);
 					write(fd, &block, MAX_BLK_SIZE);
 
-					inode n;
-					n.inodeNum = inodeNum;
-					n.size = 0;
+					inode ind;
+					ind.inodeNum = inodeNum;
+					ind.size = 0;
 					for (int i = 0; i < MAX_DIRECT_PTRS; i++)
 					{
-						n.used[i] = 0;
-						n.blocks[i] = -1;
+						ind.used[i] = 0;
+						ind.blocks[i] = -1;
 					}
-					n.type = type;
+					ind.type = type;
 					if (type == MFS_DIRECTORY)
 					{
-						n.used[0] = 1;
-						n.blocks[0] = nextBlock;
+						ind.used[0] = 1;
+						ind.blocks[0] = nextBlock;
 
 						build_dir_block(1, inodeNum, pinum);
 
-						n.size += MAX_BLK_SIZE;
+						ind.size += MAX_BLK_SIZE;
 					}
 					else if (type != MFS_DIRECTORY && type != MFS_REGULAR_FILE)
 					{
@@ -404,7 +403,7 @@ int Creat(int pinum, int type, char *name)
 					inodeMap[inodeNum] = nextBlock;
 
 					lseek(fd, nextBlock * MAX_BLK_SIZE, SEEK_SET);
-					write(fd, &n, sizeof(inode));
+					write(fd, &ind, sizeof(inode));
 					nextBlock++;
 
 					update_checkpoint(inodeNum);
