@@ -2,14 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <assert.h>
-#include <errno.h>
-
 #include "mfs.h"
 #include "udp.h"
 #include "server.h"
@@ -18,7 +10,6 @@ int get_inode(int inodeNum, inode *n)
 {
 	if (inodeNum < 0 || inodeNum >= MAX_NUM_INODES)
 	{
-		printf("get_inode: invalid inodeNum\n");
 		return -1;
 	}
 
@@ -130,13 +121,11 @@ int Startup(int port, char *path)
 	}
 
 	int sd = UDP_Open(port);
-	if (sd < 0)
+	if (sd < 0) // Could not open port
 	{
-		printf("Error opening socket on port %d\n", port);
 		exit(1);
 	}
 
-	printf("Starting server...\n");
 	while (1)
 	{
 		struct sockaddr_in s;
@@ -149,35 +138,35 @@ int Startup(int port, char *path)
 
 			switch (packet.fsop)
 			{
-				case LOOKUP:
-					responsePacket.inodeNum = Lookup(packet.inodeNum, packet.name);
-					break;
+			case LOOKUP:
+				responsePacket.inodeNum = Lookup(packet.inodeNum, packet.name);
+				break;
 
-				case STAT:
-					responsePacket.inodeNum = Stat(packet.inodeNum, &(responsePacket.stat));
-					break;
+			case STAT:
+				responsePacket.inodeNum = Stat(packet.inodeNum, &(responsePacket.stat));
+				break;
 
-				case WR:
-					responsePacket.inodeNum = Write(packet.inodeNum, packet.buffer, packet.block);
-					break;
+			case WR:
+				responsePacket.inodeNum = Write(packet.inodeNum, packet.buffer, packet.block);
+				break;
 
-				case RD:
-					responsePacket.inodeNum = Read(packet.inodeNum, responsePacket.buffer, packet.block);
-					break;
+			case RD:
+				responsePacket.inodeNum = Read(packet.inodeNum, responsePacket.buffer, packet.block);
+				break;
 
-				case CREAT:
-					responsePacket.inodeNum = Creat(packet.inodeNum, packet.type, packet.name);
-					break;
+			case CREAT:
+				responsePacket.inodeNum = Creat(packet.inodeNum, packet.type, packet.name);
+				break;
 
-				case UNLINK:
-					responsePacket.inodeNum = Unlink(packet.inodeNum, packet.name);
-					break;
+			case UNLINK:
+				responsePacket.inodeNum = Unlink(packet.inodeNum, packet.name);
+				break;
 
-				case EXIT:
-					break;
+			case EXIT:
+				break;
 
-				case RSP:
-					break;
+			case RSP:
+				break;
 			}
 
 			responsePacket.fsop = RSP;
@@ -279,13 +268,11 @@ int Read(int inodeNum, char *buffer, int block)
 	inode ind;
 	if (get_inode(inodeNum, &ind) == -1)
 	{
-		printf("get_inode failed for inodeNum %d.\n", inodeNum);
 		return -1;
 	}
 
-	if (block < 0 || block >= MAX_DIRECT_PTRS || !ind.used[block])
+	if (block < 0 || block >= MAX_DIRECT_PTRS || !ind.used[block]) // invalid
 	{
-		printf("invalid block.\n");
 		return -1;
 	}
 
@@ -293,14 +280,12 @@ int Read(int inodeNum, char *buffer, int block)
 	{
 		if (lseek(fd, ind.blocks[block] * MAX_BLK_SIZE, SEEK_SET) == -1)
 		{
-			perror("Read: lseek:");
-			printf("Read: lseek failed\n");
+			perror("Failed on lseek");
 		}
 
 		if (read(fd, buffer, MAX_BLK_SIZE) == -1)
 		{
-			perror("Read: read:");
-			printf("Read: read failed\n");
+			perror("Failed on read");
 		}
 	}
 	else
@@ -522,14 +507,11 @@ int main(int argc, char *argv[])
 {
 	if (argc != 3)
 	{
-		printf("Usage: server [portnum] [file-system image]\n");
+		printf("server portnumber FSimage\n");
 		exit(1);
 	}
-
 	int portNumber = atoi(argv[1]);
 	char *fileSysPath = argv[2];
-
 	Startup(portNumber, fileSysPath);
-
 	return 0;
 }

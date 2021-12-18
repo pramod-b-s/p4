@@ -1,5 +1,9 @@
 {
     "files.associations": {
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "assert.h": "c",
+        "stdlib.h": "c",
+        "string.h": "c",
+        "udp.h": "c"
     }
 }
