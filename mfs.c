@@ -74,7 +74,7 @@ int MFS_Lookup(int pinum, char *name){
 	dataPkt responsePacket;
 
 	sentPacket.inodeNum = pinum;
-	sentPacket.message = PAK_LOOKUP;
+	sentPacket.fsop = LOOKUP;
 	strcpy((char*)&(sentPacket.name), name);
 	int rc = sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3);
 	if(rc < 0)
@@ -92,7 +92,7 @@ int MFS_Stat(int inodeNum, MFS_Stat_t *m) {
 	dataPkt responsePacket;
 
 	sentPacket.inodeNum = inodeNum;
-	sentPacket.message = PAK_STAT;
+	sentPacket.fsop = STAT;
 
 	if(sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
@@ -111,7 +111,7 @@ int MFS_Write(int inodeNum, char *buffer, int block){
 	sentPacket.inodeNum = inodeNum;
 		memcpy(sentPacket.buffer, buffer, BUFFER_SIZE);
 	sentPacket.block = block;
-	sentPacket.message = PAK_WRITE;
+	sentPacket.fsop = WR;
 	
 	if(sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
@@ -128,7 +128,7 @@ int MFS_Read(int inodeNum, char *buffer, int block){
 
 	sentPacket.inodeNum = inodeNum;
 	sentPacket.block = block;
-	sentPacket.message = PAK_READ;
+	sentPacket.fsop = RD;
 	
 	if(sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
@@ -151,7 +151,7 @@ int MFS_Creat(int pinum, int type, char *name){
 
 	sentPacket.inodeNum = pinum;
 	sentPacket.type = type;
-	sentPacket.message = PAK_CREAT;
+	sentPacket.fsop = CREAT;
 
 	strcpy(sentPacket.name, name);
 	
@@ -172,7 +172,7 @@ int MFS_Unlink(int pinum, char *name){
 	dataPkt responsePacket;
 
 	sentPacket.inodeNum = pinum;
-	sentPacket.message = PAK_UNLINK;
+	sentPacket.fsop = UNLINK;
 	strcpy(sentPacket.name, name);
 	
 	if(sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
@@ -183,7 +183,7 @@ int MFS_Unlink(int pinum, char *name){
 
 int MFS_Shutdown(){
 	dataPkt sentPacket, responsePacket;
-	sentPacket.message = PAK_SHUTDOWN;
+	sentPacket.fsop = EXIT;
 
 
 	if(sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)

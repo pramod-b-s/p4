@@ -1,39 +1,35 @@
 #define MFS_DIRECTORY    (0)
 #define MFS_REGULAR_FILE (1)
 #define MFS_BLOCK_SIZE   (4096)
-#define MAX_BLOCKS 	14				
-#define NINODES 	4096			
-#define CRSIZE		6					
-#define BLOCKSIZE	4096			
-#define DIRENTRYSIZE	32		
-#define MAX_INODE	(BLOCKSIZE/DIRENTRYSIZE)	
-#define MAX_LEN	28			
 #define BUFFER_SIZE (4096)
 #define MAX_NAME_SIZE (28)
 
-enum message {
-	PAK_LOOKUP,
-	PAK_STAT,
-	PAK_WRITE,
-	PAK_READ,
-	PAK_CREAT,
-	PAK_UNLINK,
-	PAK_RESPONSE,
-	PAK_SHUTDOWN
+enum fsop {
+	CREAT,
+	RD,
+	LOOKUP,
+	STAT,
+	RSP,
+	WR,
+	UNLINK,
+	EXIT
 };
 
 typedef struct __MFS_Stat_t {
-    int type;       int size;       } MFS_Stat_t;
+    int type;       
+	int size;       
+} MFS_Stat_t;
 
 typedef struct __MFS_DirEnt_t {
-    char name[28];      int  inodeNum;      } MFS_DirEnt_t;
+    char name[28];      
+	int  inodeNum;      
+} MFS_DirEnt_t;
 
 typedef struct __dataPkt {
-	enum message message;
+	enum fsop fsop;
 	int inodeNum;
 	int block;
 	int type;
-
 	char name[MAX_NAME_SIZE];
 	char buffer[BUFFER_SIZE];
 	MFS_Stat_t stat;

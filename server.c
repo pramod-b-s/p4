@@ -14,26 +14,22 @@
 #include "udp.h"
 #include "server.h"
 
-typedef struct __buf {
-	char string [BLOCKSIZE/sizeof(char)];
-} buf;
 
-int imap[NINODES];			int nextBlock;					int fd;										
 int get_inode(int inodeNum, inode* n) {
 	
-	if(inodeNum < 0 || inodeNum >= NINODES)			{
+	if(inodeNum < 0 || inodeNum >= MAX_NUM_INODES)			{
 		printf("get_inode: invalid inodeNum\n");
 		return -1;
 	}
 	
-	int iblock = imap[inodeNum];						
+	int iblock = inodeMap[inodeNum];						
 	lseek(fd, iblock*BLOCKSIZE, SEEK_SET);
 	read(fd, n, sizeof(inode));
 
 	return 0;
 }
 
-int build_dir_block(int firstBlock, int inodeNum, int pinum)
+static int build_dir_block(int firstBlock, int inodeNum, int pinum)
 {
 	dirDataBlk dirBlk;
 	int i;
@@ -51,40 +47,41 @@ int build_dir_block(int firstBlock, int inodeNum, int pinum)
 		strcpy(dirBlk.fileNames[1], "..\0");
 	}
 	
-		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+	lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 	write(fd, &dirBlk, BLOCKSIZE);
 	nextBlock++;
 
 	return nextBlock-1;
 }
 
-void update_CR(int dirty_inum)
+static void update_CR(int dirty_inum)
 {
 	if(dirty_inum != -1)
 	{
-		lseek(fd, dirty_inum*sizeof(int), SEEK_SET);				write(fd, &imap[dirty_inum], sizeof(int));
+		lseek(fd, dirty_inum*sizeof(int), SEEK_SET);				
+		write(fd, &inodeMap[dirty_inum], sizeof(int));
 	}
 
-	lseek(fd, NINODES*sizeof(int), SEEK_SET);		write(fd, &nextBlock, sizeof(int));
+	lseek(fd, MAX_NUM_INODES*sizeof(int), SEEK_SET);		
+	write(fd, &nextBlock, sizeof(int));
 }
 
 int Server_Startup(int port, char* path) {
 	
-	if((fd = open(path, O_RDWR)) == -1)
-	{
-				fd = open(path, O_RDWR|O_CREAT|O_TRUNC, S_IRWXU);
-		if(fd == -1)
+	if((fd = open(path, O_RDWR)) == -1) {
+		fd = open(path, O_RDWR|O_CREAT|O_TRUNC, S_IRWXU);
+		if(fd == -1) {
 			return -1;
+		}
 		nextBlock = CRSIZE;
 
 		int i;
-		for(i = 0; i < NINODES; i++)
-		{
-			imap[i] = -1;
+		for(i = 0; i < MAX_NUM_INODES; i++) {
+			inodeMap[i] = -1;
 		}
 
 		lseek(fd, 0, SEEK_SET);
-		write(fd, imap, sizeof(int)*NINODES);
+		write(fd, inodeMap, sizeof(int)*MAX_NUM_INODES);
 		write(fd, &nextBlock, sizeof(int));
 
 		inode n;
@@ -93,8 +90,7 @@ int Server_Startup(int port, char* path) {
 		n.type = MFS_DIRECTORY;
 		n.used[0] = 1;
 		n.blocks[0] = nextBlock;
-		for(i = 1; i < MAX_BLOCKS; i++)
-		{
+		for(i = 1; i < MAX_DIRECT_PTRS; i++) {
 			n.used[i] = 0;
 			n.blocks[i] = -1;
 		}
@@ -105,34 +101,31 @@ int Server_Startup(int port, char* path) {
 		strcpy(baseBlock.fileNames[0], ".\0");
 		strcpy(baseBlock.fileNames[1], "..\0");
 
-		for(i = 2; i < MAX_INODE; i++)
-		{
+		for(i = 2; i < MAX_INODE; i++) {
 			baseBlock.inodeNums[i] = -1;
 			strcpy(baseBlock.fileNames[i], "INVALID\0");
 		}
 
-				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 		write(fd, &baseBlock, sizeof(dirDataBlk));
 		nextBlock++;
 		
-				imap[0] = nextBlock;
+		inodeMap[0] = nextBlock;
 
-				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 		write(fd, &n, sizeof(inode));
 		nextBlock++;
 
-				update_CR(0);
+		update_CR(0);
 	}
-	else
-	{
+	else {
 		lseek(fd, 0, SEEK_SET);
-		read(fd, imap, sizeof(int)*NINODES);
+		read(fd, inodeMap, sizeof(int)*MAX_NUM_INODES);
 		read(fd, &nextBlock, sizeof(int));
 	}
 
-			int sd = UDP_Open(port);
-	if(sd < 0)
-	{
+	int sd = UDP_Open(port);
+	if(sd < 0) {
 		printf("Error opening socket on port %d\n", port);
 		exit(1);
 	}
@@ -141,76 +134,70 @@ int Server_Startup(int port, char* path) {
     while (1) {
 		struct sockaddr_in s;
 		dataPkt packet;
+
 		int rc = UDP_Read(sd, &s, (char *)&packet, sizeof(dataPkt));
 		if (rc > 0) {
 		    dataPkt responsePacket;
 
-		    switch(packet.message){
+		    switch(packet.fsop){
 		    		
-		    	case PAK_LOOKUP :
+		    	case LOOKUP :
 		    		responsePacket.inodeNum = Server_Lookup(packet.inodeNum, packet.name);
 		    		break;
 
-		    	case PAK_STAT :
+		    	case STAT :
 		    		responsePacket.inodeNum = Server_Stat(packet.inodeNum, &(responsePacket.stat));
 		    		break;
 
-		    	case PAK_WRITE :
+		    	case WR :
 		    		responsePacket.inodeNum = Server_Write(packet.inodeNum, packet.buffer, packet.block);
 		    		break;
 
-		    	case PAK_READ:
+		    	case RD:
 		    		responsePacket.inodeNum = Server_Read(packet.inodeNum, responsePacket.buffer, packet.block);
 		    		break;
 
-		    	case PAK_CREAT:
+		    	case CREAT:
 		    		responsePacket.inodeNum = Server_Creat(packet.inodeNum, packet.type, packet.name);
 		    		break;
 
-		    	case PAK_UNLINK:
+		    	case UNLINK:
 		    		responsePacket.inodeNum = Server_Unlink(packet.inodeNum, packet.name);
 		    		break;
 
-		    	case PAK_SHUTDOWN:
+		    	case EXIT:
 		  			break;
 		    	
-		    	case PAK_RESPONSE:
+		    	case RSP:
 		    		break;
 		    }
 
-		    responsePacket.message = PAK_RESPONSE;
+		    responsePacket.fsop = RSP;
 		    rc = UDP_Write(sd, &s, (char*)&responsePacket, sizeof(dataPkt));
-		    if(packet.message == PAK_SHUTDOWN)
+		    if(packet.fsop == EXIT) {
 		    	Server_Shutdown();
+			}
 		}
 	}
+
 	return 0;
 }
 
 int Server_Lookup(int pinum, char *name) {
-	
 	inode parent;
-	if(get_inode(pinum, &parent) == -1)
-	{
+	if(get_inode(pinum, &parent) == -1) {
 		return -1;
 	}
 
-	int b;
-	for(b = 0; b < MAX_BLOCKS; b++)
-	{
-		if(parent.used[b])
-		{
+	for(int b = 0; b < MAX_DIRECT_PTRS; b++) {
+		if(parent.used[b]) {
 			dirDataBlk block;
 			lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
 			read(fd, &block, BLOCKSIZE);
 
-			int e;
-			for(e = 0; e < MAX_INODE; e++)
-			{
-				if(block.inodeNums[e] != -1)
-				{
-					if(strcmp(name, block.fileNames[e]) == 0)
-					{
+			for(int e = 0; e < MAX_INODE; e++) {
+				if(block.inodeNums[e] != -1) {
+					if(strcmp(name, block.fileNames[e]) == 0) {
 						return block.inodeNums[e];
 					}
 				}
@@ -224,8 +211,9 @@ int Server_Lookup(int pinum, char *name) {
 int Server_Stat(int inodeNum, MFS_Stat_t *m) {
 	
 	inode n;
-	if(get_inode(inodeNum, &n) == -1)
+	if(get_inode(inodeNum, &n) == -1) {
 		return -1;
+	}
 
 	m->type = n.type;
 	m->size = n.size;
@@ -235,12 +223,17 @@ int Server_Stat(int inodeNum, MFS_Stat_t *m) {
 
 int Server_Write(int inodeNum, char *buffer, int block) {
 	inode n; 
-	if(get_inode(inodeNum, &n) == -1)
+	if(get_inode(inodeNum, &n) == -1) {
 		return -1;
+	}
 	
-	if(n.type != MFS_REGULAR_FILE)										return -1;
+	if(n.type != MFS_REGULAR_FILE) {								
+		return -1;
+	}
 
-	if(block < 0 || block >= MAX_BLOCKS)			return -1;
+	if(block < 0 || block >= MAX_DIRECT_PTRS) {
+		return -1;
+	}
 	
 		n.size = (block+1)*BLOCKSIZE > n.size ? (block+1)*BLOCKSIZE : n.size;
 	n.used[block] = 1;
@@ -249,7 +242,7 @@ int Server_Write(int inodeNum, char *buffer, int block) {
 
 		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 	write(fd, &n, BLOCKSIZE);
-	imap[inodeNum] = nextBlock;
+	inodeMap[inodeNum] = nextBlock;
 	nextBlock++;
 	
 		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
@@ -268,7 +261,7 @@ int Server_Read(int inodeNum, char *buffer, int block){
 		return -1;
 	}
 
-	if(block < 0 || block >= MAX_BLOCKS || !n.used[block])			{
+	if(block < 0 || block >= MAX_DIRECT_PTRS || !n.used[block])			{
 		printf("invalid block.\n");
 		return -1;
 	}
@@ -316,9 +309,9 @@ int Server_Creat(int pinum, int type, char *name){
 	}
 	
 	int inodeNum = -1;
-	for(int i = 0; i < NINODES; i++)
+	for(int i = 0; i < MAX_NUM_INODES; i++)
 	{
-		if(imap[i] == -1)
+		if(inodeMap[i] == -1)
 		{
 			inodeNum = i;
 			break;
@@ -330,7 +323,7 @@ int Server_Creat(int pinum, int type, char *name){
 	}
 
 	dirDataBlk block;
-	for(int b = 0; b < MAX_BLOCKS; b++)
+	for(int b = 0; b < MAX_DIRECT_PTRS; b++)
 	{
 		if(parent.used[b])
 		{
@@ -341,7 +334,7 @@ int Server_Creat(int pinum, int type, char *name){
 			{
 				if(block.inodeNums[e] == -1)
 				{
-					lseek(fd, imap[pinum]*BLOCKSIZE, SEEK_SET);
+					lseek(fd, inodeMap[pinum]*BLOCKSIZE, SEEK_SET);
 					write(fd, &parent, BLOCKSIZE);
 
 					block.inodeNums[e] = inodeNum;
@@ -352,7 +345,7 @@ int Server_Creat(int pinum, int type, char *name){
 					inode n;
 					n.inodeNum = inodeNum;
 					n.size = 0;
-					for(int i = 0; i < MAX_BLOCKS; i++)
+					for(int i = 0; i < MAX_DIRECT_PTRS; i++)
 					{
 						n.used[i] = 0;
 						n.blocks[i] = -1;
@@ -372,7 +365,7 @@ int Server_Creat(int pinum, int type, char *name){
 						return -1;
 					}
 
-					imap[inodeNum] = nextBlock;
+					inodeMap[inodeNum] = nextBlock;
 
 					lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 					write(fd, &n, sizeof(inode));
@@ -408,7 +401,7 @@ int Server_Unlink(int pinum, char *name){
 		if(toRemove.type == MFS_DIRECTORY)
 	{
 		int b;
-		for(b = 0; b < MAX_BLOCKS; b++)
+		for(b = 0; b < MAX_DIRECT_PTRS; b++)
 		{
 			if(toRemove.used[b])
 			{
@@ -427,9 +420,9 @@ int Server_Unlink(int pinum, char *name){
 		}
 	}
 	
-		int found = 0;
+	int found = 0;
 	int b;
-	for(b = 0; b < MAX_BLOCKS && !found; b++)
+	for(b = 0; b < MAX_DIRECT_PTRS && !found; b++)
 	{
 		if(parent.used[b])
 		{
@@ -453,22 +446,22 @@ int Server_Unlink(int pinum, char *name){
 
 			if(found)
 			{
-								lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 				write(fd, &block, BLOCKSIZE);
 				nextBlock++;
 
-								parent.blocks[b] = nextBlock-1;
+				parent.blocks[b] = nextBlock-1;
 				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 				write(fd, &parent, BLOCKSIZE);
 				nextBlock++;
 
-								imap[pinum] = nextBlock-1;
+				inodeMap[pinum] = nextBlock-1;
 				update_CR(pinum);
 			}
 		}
 	}
 
-		imap[inodeNum] = -1;
+	inodeMap[inodeNum] = -1;
 	update_CR(inodeNum);
 
 	return 0;
