@@ -22,15 +22,15 @@ int imap[NINODES];			// block number of each inode
 int nextBlock;					// next block in the address space to be written
 int fd;										// the file descriptor of the LFS
 
-int get_inode(int inum, inode* n) {
+int get_inode(int inodeNum, inode* n) {
 	
-	if(inum < 0 || inum >= NINODES)		// check for invalid inum
+	if(inodeNum < 0 || inodeNum >= NINODES)		// check for invalid inodeNum
 	{
-		printf("get_inode: invalid inum\n");
+		printf("get_inode: invalid inodeNum\n");
 		return -1;
 	}
 	
-	int iblock = imap[inum];					// block where desired inode is written
+	int iblock = imap[inodeNum];					// block where desired inode is written
 	
 	lseek(fd, iblock*BLOCKSIZE, SEEK_SET);
 	read(fd, n, sizeof(inode));
@@ -40,21 +40,21 @@ int get_inode(int inum, inode* n) {
 
 // Returns block number of new block
 // pinum is unused if firstBlock == 0
-int build_dir_block(int firstBlock, int inum, int pinum)
+int build_dir_block(int firstBlock, int inodeNum, int pinum)
 {
 	dirBlock db;
 	int i;
 	for(i = 0; i < MAX_INODE; i++)
 	{
-		db.inums[i] = -1;
+		db.inodeNums[i] = -1;
 		strcpy(db.names[i], "DNE\0");
 	}
 
 	if(firstBlock)
 	{
-		db.inums[0] = inum;
+		db.inodeNums[0] = inodeNum;
 		strcpy(db.names[0], ".\0");
-		db.inums[1] = pinum;
+		db.inodeNums[1] = pinum;
 		strcpy(db.names[1], "..\0");
 	}
 	
@@ -99,7 +99,7 @@ int Server_Startup(int port, char* path) {
 		write(fd, &nextBlock, sizeof(int));
 
 		inode n;
-		n.inum = 0;
+		n.inodeNum = 0;
 		n.size = BLOCKSIZE;
 		n.type = MFS_DIRECTORY;
 		n.used[0] = 1;
@@ -111,14 +111,14 @@ int Server_Startup(int port, char* path) {
 		}
 
 		dirBlock baseBlock;
-		baseBlock.inums[0] = 0;
-		baseBlock.inums[1] = 0;
+		baseBlock.inodeNums[0] = 0;
+		baseBlock.inodeNums[1] = 0;
 		strcpy(baseBlock.names[0], ".\0");
 		strcpy(baseBlock.names[1], "..\0");
 
 		for(i = 2; i < MAX_INODE; i++)
 		{
-			baseBlock.inums[i] = -1;
+			baseBlock.inodeNums[i] = -1;
 			strcpy(baseBlock.names[i], "DNE\0");
 		}
 
@@ -164,27 +164,27 @@ int Server_Startup(int port, char* path) {
 		    switch(packet.message){
 		    		
 		    	case PAK_LOOKUP :
-		    		responsePacket.inum = Server_Lookup(packet.inum, packet.name);
+		    		responsePacket.inodeNum = Server_Lookup(packet.inodeNum, packet.name);
 		    		break;
 
 		    	case PAK_STAT :
-		    		responsePacket.inum = Server_Stat(packet.inum, &(responsePacket.stat));
+		    		responsePacket.inodeNum = Server_Stat(packet.inodeNum, &(responsePacket.stat));
 		    		break;
 
 		    	case PAK_WRITE :
-		    		responsePacket.inum = Server_Write(packet.inum, packet.buffer, packet.block);
+		    		responsePacket.inodeNum = Server_Write(packet.inodeNum, packet.buffer, packet.block);
 		    		break;
 
 		    	case PAK_READ:
-		    		responsePacket.inum = Server_Read(packet.inum, responsePacket.buffer, packet.block);
+		    		responsePacket.inodeNum = Server_Read(packet.inodeNum, responsePacket.buffer, packet.block);
 		    		break;
 
 		    	case PAK_CREAT:
-		    		responsePacket.inum = Server_Creat(packet.inum, packet.type, packet.name);
+		    		responsePacket.inodeNum = Server_Creat(packet.inodeNum, packet.type, packet.name);
 		    		break;
 
 		    	case PAK_UNLINK:
-		    		responsePacket.inum = Server_Unlink(packet.inum, packet.name);
+		    		responsePacket.inodeNum = Server_Unlink(packet.inodeNum, packet.name);
 		    		break;
 
 		    	case PAK_SHUTDOWN:
@@ -223,11 +223,11 @@ int Server_Lookup(int pinum, char *name) {
 			int e;
 			for(e = 0; e < MAX_INODE; e++)
 			{
-				if(block.inums[e] != -1)
+				if(block.inodeNums[e] != -1)
 				{
 					if(strcmp(name, block.names[e]) == 0)
 					{
-						return block.inums[e];
+						return block.inodeNums[e];
 					}
 				}
 			}
@@ -237,10 +237,10 @@ int Server_Lookup(int pinum, char *name) {
 	return -1;
 }
 
-int Server_Stat(int inum, MFS_Stat_t *m) {
+int Server_Stat(int inodeNum, MFS_Stat_t *m) {
 	
 	inode n;
-	if(get_inode(inum, &n) == -1)
+	if(get_inode(inodeNum, &n) == -1)
 		return -1;
 
 	m->type = n.type;
@@ -249,9 +249,9 @@ int Server_Stat(int inum, MFS_Stat_t *m) {
 	return 0;
 }
 
-int Server_Write(int inum, char *buffer, int block) {
+int Server_Write(int inodeNum, char *buffer, int block) {
 	inode n; 
-	if(get_inode(inum, &n) == -1)
+	if(get_inode(inodeNum, &n) == -1)
 		return -1;
 	
 	if(n.type != MFS_REGULAR_FILE)								// can't write to directory
@@ -270,7 +270,7 @@ int Server_Write(int inum, char *buffer, int block) {
 	// write inode chunk
 	lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 	write(fd, &n, BLOCKSIZE);
-	imap[inum] = nextBlock;
+	imap[inodeNum] = nextBlock;
 	nextBlock++;
 	
 	// write buffer
@@ -279,15 +279,15 @@ int Server_Write(int inum, char *buffer, int block) {
 	nextBlock++;
 
 	// write checkpoint region
-	update_CR(inum);
+	update_CR(inodeNum);
 	return 0;
 }
 
-int Server_Read(int inum, char *buffer, int block){
+int Server_Read(int inodeNum, char *buffer, int block){
 	inode n;
-	if(get_inode(inum, &n) == -1)
+	if(get_inode(inodeNum, &n) == -1)
 	{
-		printf("get_inode failed for inum %d.\n", inum);
+		printf("get_inode failed for inodeNum %d.\n", inodeNum);
 		return -1;
 	}
 
@@ -324,7 +324,7 @@ int Server_Read(int inum, char *buffer, int block){
 		{
 			MFS_DirEnt_t entry ;
 			strcpy(entry.name, db.names[i]);
-			entry.inum = db.inums[i];
+			entry.inodeNum = db.inodeNums[i];
 			entries[i] = entry;
 		}
 
@@ -344,19 +344,19 @@ int Server_Creat(int pinum, int type, char *name){
 	if(parent.type != MFS_DIRECTORY)												// if parent directory is not a directory, return failure
 		return -1;
 	
-	// find lowest available inum
-	int inum = -1;
+	// find lowest available inodeNum
+	int inodeNum = -1;
 	int i;
 	for(i = 0; i < NINODES; i++)
 	{
 		if(imap[i] == -1)
 		{
-			inum = i;
+			inodeNum = i;
 			break;
 		}
 	}
 
-	if(inum == -1)			// if more than NINODES inodes exist, return failure
+	if(inodeNum == -1)			// if more than NINODES inodes exist, return failure
 		return -1;
 
 	// put inode into parent directory
@@ -375,7 +375,7 @@ int Server_Creat(int pinum, int type, char *name){
 			}
 			for(e = 0; e < MAX_INODE; e++)
 			{
-				if(block.inums[e] == -1)
+				if(block.inodeNums[e] == -1)
 				{
 					//printf("Chose block %d and entry %d\n", b, e);
 					goto found_parent_slot;
@@ -385,7 +385,7 @@ int Server_Creat(int pinum, int type, char *name){
 		else
 		{
 			// make new block, then repeat loop on this block
-			int bl = build_dir_block(0, inum, -1);
+			int bl = build_dir_block(0, inodeNum, -1);
 			parent.size += BLOCKSIZE;
 
 			parent.used[b] = 1;
@@ -402,14 +402,14 @@ int Server_Creat(int pinum, int type, char *name){
 	lseek(fd, imap[pinum]*BLOCKSIZE, SEEK_SET);
 	write(fd, &parent, BLOCKSIZE);
 
-	block.inums[e] = inum;
+	block.inodeNums[e] = inodeNum;
 	strcpy(block.names[e], name);
 	lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
 	write(fd, &block, BLOCKSIZE);
 
 	// create inode
 	inode n;
-	n.inum = inum;
+	n.inodeNum = inodeNum;
 	n.size = 0;
 	for(i = 0; i < MAX_BLOCKS; i++)
 	{
@@ -422,7 +422,7 @@ int Server_Creat(int pinum, int type, char *name){
 		n.used[0] = 1;
 		n.blocks[0] = nextBlock;
 		
-		build_dir_block(1, inum, pinum);
+		build_dir_block(1, inodeNum, pinum);
 
 		// update file size
 		n.size += BLOCKSIZE;
@@ -433,7 +433,7 @@ int Server_Creat(int pinum, int type, char *name){
 	}
 
 	// update imap
-	imap[inum] = nextBlock;
+	imap[inodeNum] = nextBlock;
 
 	// write inode
 	lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
@@ -441,7 +441,7 @@ int Server_Creat(int pinum, int type, char *name){
 	nextBlock++;
 
 	// write checkpoint region
-	update_CR(inum);
+	update_CR(inodeNum);
 
 	return 0;
 }
@@ -454,8 +454,8 @@ int Server_Unlink(int pinum, char *name){
 	if(get_inode(pinum, &parent) == -1)			// parent directory doesn't exist; return failure
 		return -1;
 
-	int inum = Server_Lookup(pinum, name);	// inum of toRemove
-	if(get_inode(inum, &toRemove) == -1)		// toRemove doesn't exist; return success
+	int inodeNum = Server_Lookup(pinum, name);	// inodeNum of toRemove
+	if(get_inode(inodeNum, &toRemove) == -1)		// toRemove doesn't exist; return success
 		return 0;
 
 	// if toRemove is a directory, make sure it's empty
@@ -473,7 +473,7 @@ int Server_Unlink(int pinum, char *name){
 				int e;
 				for(e = 0; e < MAX_INODE; e++)
 				{
-					if(block.inums[e] != -1 && strcmp(block.names[e], ".") != 0 && strcmp(block.names[e], "..") != 0)
+					if(block.inodeNums[e] != -1 && strcmp(block.names[e], ".") != 0 && strcmp(block.names[e], "..") != 0)
 					{
 						return -1;	// found file in toRemove
 					}
@@ -496,11 +496,11 @@ int Server_Unlink(int pinum, char *name){
 			int e;
 			for(e = 0; e < MAX_INODE && !found; e++)
 			{
-				if(block.inums[e] != -1)
+				if(block.inodeNums[e] != -1)
 				{
 					if(strcmp(name, block.names[e]) == 0)
 					{
-						block.inums[e] = -1;
+						block.inodeNums[e] = -1;
 						strcpy(block.names[e], "DNE");
 						found = 1;
 					}
@@ -528,8 +528,8 @@ int Server_Unlink(int pinum, char *name){
 	}
 
 	// remove toRemove from CR
-	imap[inum] = -1;
-	update_CR(inum);
+	imap[inodeNum] = -1;
+	update_CR(inodeNum);
 
 	return 0;
 }
