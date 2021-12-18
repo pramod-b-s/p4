@@ -341,13 +341,12 @@ int Server_Creat(int pinum, int type, char *name){
 	if(get_inode(pinum, &parent) == -1)
 		return -1;
 
-	if(parent.type != MFS_DIRECTORY)												// if parent directory is not a directory, return failure
+	if(parent.type != MFS_DIRECTORY) {
 		return -1;
+	}
 	
-	// find lowest available inodeNum
 	int inodeNum = -1;
-	int i;
-	for(i = 0; i < NINODES; i++)
+	for(int i = 0; i < NINODES; i++)
 	{
 		if(imap[i] == -1)
 		{
@@ -356,29 +355,62 @@ int Server_Creat(int pinum, int type, char *name){
 		}
 	}
 
-	if(inodeNum == -1)			// if more than NINODES inodes exist, return failure
+	if(inodeNum == -1) {
 		return -1;
+	}
 
-	// put inode into parent directory
-	int b, e; dirBlock block;
-	for(b = 0; b < MAX_BLOCKS; b++)
+	dirBlock block;
+	for(int b = 0; b < MAX_BLOCKS; b++)
 	{
 		if(parent.used[b])
 		{
 			lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
 			read(fd, &block, BLOCKSIZE);
 
-			if(b>0)
-			{
-				//printf("About to examine the following block:\n");
-				//print_dirBlock(parent.blocks[b]);
-			}
-			for(e = 0; e < MAX_INODE; e++)
+			for(int e = 0; e < MAX_INODE; e++)
 			{
 				if(block.inodeNums[e] == -1)
 				{
-					//printf("Chose block %d and entry %d\n", b, e);
-					goto found_parent_slot;
+					lseek(fd, imap[pinum]*BLOCKSIZE, SEEK_SET);
+					write(fd, &parent, BLOCKSIZE);
+
+					block.inodeNums[e] = inodeNum;
+					strcpy(block.names[e], name);
+					lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
+					write(fd, &block, BLOCKSIZE);
+
+					inode n;
+					n.inodeNum = inodeNum;
+					n.size = 0;
+					for(int i = 0; i < MAX_BLOCKS; i++)
+					{
+						n.used[i] = 0;
+						n.blocks[i] = -1;
+					}
+					n.type = type;	
+					if(type == MFS_DIRECTORY)
+					{
+						n.used[0] = 1;
+						n.blocks[0] = nextBlock;
+						
+						build_dir_block(1, inodeNum, pinum);
+
+						n.size += BLOCKSIZE;
+					}
+					else if (type != MFS_DIRECTORY && type != MFS_REGULAR_FILE)
+					{
+						return -1;
+					}
+
+					imap[inodeNum] = nextBlock;
+
+					lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+					write(fd, &n, sizeof(inode));
+					nextBlock++;
+
+					update_CR(inodeNum);
+
+					return 0;
 				}
 			}
 		}
@@ -394,56 +426,7 @@ int Server_Creat(int pinum, int type, char *name){
 		}
 	}
 
-	return -1;						// directory is full
-
-	found_parent_slot:
-	
-	// write parent
-	lseek(fd, imap[pinum]*BLOCKSIZE, SEEK_SET);
-	write(fd, &parent, BLOCKSIZE);
-
-	block.inodeNums[e] = inodeNum;
-	strcpy(block.names[e], name);
-	lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
-	write(fd, &block, BLOCKSIZE);
-
-	// create inode
-	inode n;
-	n.inodeNum = inodeNum;
-	n.size = 0;
-	for(i = 0; i < MAX_BLOCKS; i++)
-	{
-		n.used[i] = 0;
-		n.blocks[i] = -1;
-	}
-	n.type = type;	
-	if(type == MFS_DIRECTORY)
-	{
-		n.used[0] = 1;
-		n.blocks[0] = nextBlock;
-		
-		build_dir_block(1, inodeNum, pinum);
-
-		// update file size
-		n.size += BLOCKSIZE;
-	}
-	else if (type != MFS_DIRECTORY && type != MFS_REGULAR_FILE)
-	{
-		return -1;
-	}
-
-	// update imap
-	imap[inodeNum] = nextBlock;
-
-	// write inode
-	lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
-	write(fd, &n, sizeof(inode));
-	nextBlock++;
-
-	// write checkpoint region
-	update_CR(inodeNum);
-
-	return 0;
+	return -1;
 }
 
 int Server_Unlink(int pinum, char *name){
