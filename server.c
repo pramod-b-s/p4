@@ -1,8 +1,6 @@
-#include "mfs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "udp.h"
 
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -12,6 +10,9 @@
 #include <assert.h>
 #include <errno.h>
 
+#include "mfs.h"
+#include "udp.h"
+#include "server.h"
 
 typedef struct __buf {
 	char string [BLOCKSIZE/sizeof(char)];
