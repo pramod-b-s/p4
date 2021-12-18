@@ -24,11 +24,11 @@ typedef struct __dirDataBlk {
 } dirDataBlk;
 
 
-int Server_Startup();
-int Server_Lookup(int pinum, char *name);
-int Server_Stat(int inodeNum, MFS_Stat_t *m);
-int Server_Write(int inodeNum, char *buffer, int block);
-int Server_Read(int inodeNum, char *buffer, int block);
-int Server_Creat(int pinum, int type, char *name);
-int Server_Unlink(int pinum, char *name);
-int Server_Shutdown();
+int Startup();
+int Creat(int pinum, int type, char *name);
+int Read(int inodeNum, char *buffer, int block);
+int Stat(int inodeNum, MFS_Stat_t *m);
+int Lookup(int pinum, char *name);
+int Write(int inodeNum, char *buffer, int block);
+int Unlink(int pinum, char *name);
+int Shutdown();

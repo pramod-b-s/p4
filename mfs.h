@@ -4,6 +4,10 @@
 #define BUFFER_SIZE (4096)
 #define MAX_NAME_SIZE (28)
 
+char *serverHostname;
+int serverPort;
+int mfsInitDone = 0;
+
 enum fsop {
 	CREAT,
 	RD,

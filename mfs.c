@@ -1,19 +1,17 @@
-#include "mfs.h"
-#include "stdlib.h"
+#include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
 #include "udp.h"
+#include "mfs.h"
 
-char *serverHostname;
-int serverPort;
-int initialized = 0;
 
-int sendPacket(char *hostname, int port, dataPkt *sentPacket, dataPkt *responsePacket, int maxTries)
+int sendToHost(char *hostname, int port, dataPkt *sentPacket, dataPkt *responsePacket, int maxTries)
 {
-	int sd = UDP_Open(0);
+	int sd = UDP_Open(7777);
 	if (sd < -1)
 	{
 		perror("Error opening connection.\n");
@@ -61,13 +59,13 @@ int MFS_Init(char *hostname, int port)
 	serverHostname = malloc(strlen(hostname) + 1);
 	strcpy(serverHostname, hostname);
 	serverPort = port;
-	initialized = 1;
+	mfsInitDone = 1;
 	return 0;
 }
 
 int MFS_Lookup(int pinum, char *name)
 {
-	if (!initialized)
+	if (!mfsInitDone)
 		return -1;
 
 	if (strlen(name) > 27)
@@ -79,7 +77,7 @@ int MFS_Lookup(int pinum, char *name)
 	sentPacket.inodeNum = pinum;
 	sentPacket.fsop = LOOKUP;
 	strcpy((char *)&(sentPacket.name), name);
-	int rc = sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3);
+	int rc = sendToHost(serverHostname, serverPort, &sentPacket, &responsePacket, 3);
 	if (rc < 0)
 		return -1;
 
@@ -89,7 +87,7 @@ int MFS_Lookup(int pinum, char *name)
 
 int MFS_Stat(int inodeNum, MFS_Stat_t *m)
 {
-	if (!initialized)
+	if (!mfsInitDone)
 		return -1;
 
 	dataPkt sentPacket;
@@ -98,7 +96,7 @@ int MFS_Stat(int inodeNum, MFS_Stat_t *m)
 	sentPacket.inodeNum = inodeNum;
 	sentPacket.fsop = STAT;
 
-	if (sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
+	if (sendToHost(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
 
 	memcpy(m, &(responsePacket.stat), sizeof(MFS_Stat_t));
@@ -107,7 +105,7 @@ int MFS_Stat(int inodeNum, MFS_Stat_t *m)
 
 int MFS_Write(int inodeNum, char *buffer, int block)
 {
-	if (!initialized)
+	if (!mfsInitDone)
 		return -1;
 
 	dataPkt sentPacket;
@@ -118,7 +116,7 @@ int MFS_Write(int inodeNum, char *buffer, int block)
 	sentPacket.block = block;
 	sentPacket.fsop = WR;
 
-	if (sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
+	if (sendToHost(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
 
 	return responsePacket.inodeNum;
@@ -126,7 +124,7 @@ int MFS_Write(int inodeNum, char *buffer, int block)
 
 int MFS_Read(int inodeNum, char *buffer, int block)
 {
-	if (!initialized)
+	if (!mfsInitDone)
 		return -1;
 
 	dataPkt sentPacket;
@@ -136,7 +134,7 @@ int MFS_Read(int inodeNum, char *buffer, int block)
 	sentPacket.block = block;
 	sentPacket.fsop = RD;
 
-	if (sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
+	if (sendToHost(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
 
 	if (responsePacket.inodeNum > -1)
@@ -147,7 +145,7 @@ int MFS_Read(int inodeNum, char *buffer, int block)
 
 int MFS_Creat(int pinum, int type, char *name)
 {
-	if (!initialized)
+	if (!mfsInitDone)
 		return -1;
 
 	if (strlen(name) > 27)
@@ -162,7 +160,7 @@ int MFS_Creat(int pinum, int type, char *name)
 
 	strcpy(sentPacket.name, name);
 
-	if (sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
+	if (sendToHost(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
 
 	return responsePacket.inodeNum;
@@ -170,7 +168,7 @@ int MFS_Creat(int pinum, int type, char *name)
 
 int MFS_Unlink(int pinum, char *name)
 {
-	if (!initialized)
+	if (!mfsInitDone)
 		return -1;
 
 	if (strlen(name) > 27)
@@ -183,7 +181,7 @@ int MFS_Unlink(int pinum, char *name)
 	sentPacket.fsop = UNLINK;
 	strcpy(sentPacket.name, name);
 
-	if (sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
+	if (sendToHost(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
 
 	return responsePacket.inodeNum;
@@ -194,7 +192,7 @@ int MFS_Shutdown()
 	dataPkt sentPacket, responsePacket;
 	sentPacket.fsop = EXIT;
 
-	if (sendPacket(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
+	if (sendToHost(serverHostname, serverPort, &sentPacket, &responsePacket, 3) < 0)
 		return -1;
 
 	return 0;

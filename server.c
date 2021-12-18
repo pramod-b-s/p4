@@ -16,7 +16,6 @@
 
 int get_inode(int inodeNum, inode *n)
 {
-
 	if (inodeNum < 0 || inodeNum >= MAX_NUM_INODES)
 	{
 		printf("get_inode: invalid inodeNum\n");
@@ -55,7 +54,7 @@ static int build_dir_block(int firstBlock, int inodeNum, int pinum)
 	return nextBlock - 1;
 }
 
-static void update_CR(int dirty_inum)
+static void update_checkpoint(int dirty_inum)
 {
 	if (dirty_inum != -1)
 	{
@@ -67,9 +66,8 @@ static void update_CR(int dirty_inum)
 	write(fd, &nextBlock, sizeof(int));
 }
 
-int Server_Startup(int port, char *path)
+int Startup(int port, char *path)
 {
-
 	if ((fd = open(path, O_RDWR)) == -1)
 	{
 		fd = open(path, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
@@ -122,7 +120,7 @@ int Server_Startup(int port, char *path)
 		write(fd, &n, sizeof(inode));
 		nextBlock++;
 
-		update_CR(0);
+		update_checkpoint(0);
 	}
 	else
 	{
@@ -153,27 +151,27 @@ int Server_Startup(int port, char *path)
 			{
 
 			case LOOKUP:
-				responsePacket.inodeNum = Server_Lookup(packet.inodeNum, packet.name);
+				responsePacket.inodeNum = Lookup(packet.inodeNum, packet.name);
 				break;
 
 			case STAT:
-				responsePacket.inodeNum = Server_Stat(packet.inodeNum, &(responsePacket.stat));
+				responsePacket.inodeNum = Stat(packet.inodeNum, &(responsePacket.stat));
 				break;
 
 			case WR:
-				responsePacket.inodeNum = Server_Write(packet.inodeNum, packet.buffer, packet.block);
+				responsePacket.inodeNum = Write(packet.inodeNum, packet.buffer, packet.block);
 				break;
 
 			case RD:
-				responsePacket.inodeNum = Server_Read(packet.inodeNum, responsePacket.buffer, packet.block);
+				responsePacket.inodeNum = Read(packet.inodeNum, responsePacket.buffer, packet.block);
 				break;
 
 			case CREAT:
-				responsePacket.inodeNum = Server_Creat(packet.inodeNum, packet.type, packet.name);
+				responsePacket.inodeNum = Creat(packet.inodeNum, packet.type, packet.name);
 				break;
 
 			case UNLINK:
-				responsePacket.inodeNum = Server_Unlink(packet.inodeNum, packet.name);
+				responsePacket.inodeNum = Unlink(packet.inodeNum, packet.name);
 				break;
 
 			case EXIT:
@@ -187,7 +185,7 @@ int Server_Startup(int port, char *path)
 			rc = UDP_Write(sd, &s, (char *)&responsePacket, sizeof(dataPkt));
 			if (packet.fsop == EXIT)
 			{
-				Server_Shutdown();
+				Shutdown();
 			}
 		}
 	}
@@ -195,7 +193,7 @@ int Server_Startup(int port, char *path)
 	return 0;
 }
 
-int Server_Lookup(int pinum, char *name)
+int Lookup(int pinum, char *name)
 {
 	inode parent;
 	if (get_inode(pinum, &parent) == -1)
@@ -227,9 +225,8 @@ int Server_Lookup(int pinum, char *name)
 	return -1;
 }
 
-int Server_Stat(int inodeNum, MFS_Stat_t *m)
+int Stat(int inodeNum, MFS_Stat_t *m)
 {
-
 	inode n;
 	if (get_inode(inodeNum, &n) == -1)
 	{
@@ -242,7 +239,7 @@ int Server_Stat(int inodeNum, MFS_Stat_t *m)
 	return 0;
 }
 
-int Server_Write(int inodeNum, char *buffer, int block)
+int Write(int inodeNum, char *buffer, int block)
 {
 	inode n;
 	if (get_inode(inodeNum, &n) == -1)
@@ -274,11 +271,11 @@ int Server_Write(int inodeNum, char *buffer, int block)
 	write(fd, buffer, MAX_BLK_SIZE);
 	nextBlock++;
 
-	update_CR(inodeNum);
+	update_checkpoint(inodeNum);
 	return 0;
 }
 
-int Server_Read(int inodeNum, char *buffer, int block)
+int Read(int inodeNum, char *buffer, int block)
 {
 	inode n;
 	if (get_inode(inodeNum, &n) == -1)
@@ -297,14 +294,14 @@ int Server_Read(int inodeNum, char *buffer, int block)
 	{
 		if (lseek(fd, n.blocks[block] * MAX_BLK_SIZE, SEEK_SET) == -1)
 		{
-			perror("Server_Read: lseek:");
-			printf("Server_Read: lseek failed\n");
+			perror("Read: lseek:");
+			printf("Read: lseek failed\n");
 		}
 
 		if (read(fd, buffer, MAX_BLK_SIZE) == -1)
 		{
-			perror("Server_Read: read:");
-			printf("Server_Read: read failed\n");
+			perror("Read: read:");
+			printf("Read: read failed\n");
 		}
 	}
 	else
@@ -328,9 +325,9 @@ int Server_Read(int inodeNum, char *buffer, int block)
 	return 0;
 }
 
-int Server_Creat(int pinum, int type, char *name)
+int Creat(int pinum, int type, char *name)
 {
-	if (Server_Lookup(pinum, name) != -1)
+	if (Lookup(pinum, name) != -1)
 	{
 		return 0;
 	}
@@ -410,7 +407,7 @@ int Server_Creat(int pinum, int type, char *name)
 					write(fd, &n, sizeof(inode));
 					nextBlock++;
 
-					update_CR(inodeNum);
+					update_checkpoint(inodeNum);
 
 					return 0;
 				}
@@ -430,9 +427,8 @@ int Server_Creat(int pinum, int type, char *name)
 	return -1;
 }
 
-int Server_Unlink(int pinum, char *name)
+int Unlink(int pinum, char *name)
 {
-
 	inode toRemove;
 	inode parent;
 	if (get_inode(pinum, &parent) == -1)
@@ -440,7 +436,7 @@ int Server_Unlink(int pinum, char *name)
 		return -1;
 	}
 
-	int inodeNum = Server_Lookup(pinum, name);
+	int inodeNum = Lookup(pinum, name);
 	if (get_inode(inodeNum, &toRemove) == -1)
 	{
 		return 0;
@@ -505,18 +501,18 @@ int Server_Unlink(int pinum, char *name)
 				nextBlock++;
 
 				inodeMap[pinum] = nextBlock - 1;
-				update_CR(pinum);
+				update_checkpoint(pinum);
 			}
 		}
 	}
 
 	inodeMap[inodeNum] = -1;
-	update_CR(inodeNum);
+	update_checkpoint(inodeNum);
 
 	return 0;
 }
 
-int Server_Shutdown()
+int Shutdown()
 {
 	fsync(fd);
 	exit(0);
@@ -534,7 +530,7 @@ int main(int argc, char *argv[])
 	int portNumber = atoi(argv[1]);
 	char *fileSysPath = argv[2];
 
-	Server_Startup(portNumber, fileSysPath);
+	Startup(portNumber, fileSysPath);
 
 	return 0;
 }
