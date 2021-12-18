@@ -18,49 +18,41 @@ typedef struct __buf {
 	char string [BLOCKSIZE/sizeof(char)];
 } buf;
 
-int imap[NINODES];			// block number of each inode
-int nextBlock;					// next block in the address space to be written
-int fd;										// the file descriptor of the LFS
-
+int imap[NINODES];			int nextBlock;					int fd;										
 int get_inode(int inodeNum, inode* n) {
 	
-	if(inodeNum < 0 || inodeNum >= NINODES)		// check for invalid inodeNum
-	{
+	if(inodeNum < 0 || inodeNum >= NINODES)			{
 		printf("get_inode: invalid inodeNum\n");
 		return -1;
 	}
 	
-	int iblock = imap[inodeNum];					// block where desired inode is written
-	
+	int iblock = imap[inodeNum];						
 	lseek(fd, iblock*BLOCKSIZE, SEEK_SET);
 	read(fd, n, sizeof(inode));
 
 	return 0;
 }
 
-// Returns block number of new block
-// pinum is unused if firstBlock == 0
 int build_dir_block(int firstBlock, int inodeNum, int pinum)
 {
-	dirBlock db;
+	dirDataBlk dirBlk;
 	int i;
 	for(i = 0; i < MAX_INODE; i++)
 	{
-		db.inodeNums[i] = -1;
-		strcpy(db.names[i], "DNE\0");
+		dirBlk.inodeNums[i] = -1;
+		strcpy(dirBlk.fileNames[i], "INVALID\0");
 	}
 
 	if(firstBlock)
 	{
-		db.inodeNums[0] = inodeNum;
-		strcpy(db.names[0], ".\0");
-		db.inodeNums[1] = pinum;
-		strcpy(db.names[1], "..\0");
+		dirBlk.inodeNums[0] = inodeNum;
+		strcpy(dirBlk.fileNames[0], ".\0");
+		dirBlk.inodeNums[1] = pinum;
+		strcpy(dirBlk.fileNames[1], "..\0");
 	}
 	
-	// write new block
-	lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
-	write(fd, &db, BLOCKSIZE);
+		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+	write(fd, &dirBlk, BLOCKSIZE);
 	nextBlock++;
 
 	return nextBlock-1;
@@ -70,20 +62,17 @@ void update_CR(int dirty_inum)
 {
 	if(dirty_inum != -1)
 	{
-		lseek(fd, dirty_inum*sizeof(int), SEEK_SET);		// update inode table
-		write(fd, &imap[dirty_inum], sizeof(int));
+		lseek(fd, dirty_inum*sizeof(int), SEEK_SET);				write(fd, &imap[dirty_inum], sizeof(int));
 	}
 
-	lseek(fd, NINODES*sizeof(int), SEEK_SET);	// update nextBlock
-	write(fd, &nextBlock, sizeof(int));
+	lseek(fd, NINODES*sizeof(int), SEEK_SET);		write(fd, &nextBlock, sizeof(int));
 }
 
 int Server_Startup(int port, char* path) {
 	
 	if((fd = open(path, O_RDWR)) == -1)
 	{
-		// create new file system
-		fd = open(path, O_RDWR|O_CREAT|O_TRUNC, S_IRWXU);
+				fd = open(path, O_RDWR|O_CREAT|O_TRUNC, S_IRWXU);
 		if(fd == -1)
 			return -1;
 		nextBlock = CRSIZE;
@@ -110,33 +99,29 @@ int Server_Startup(int port, char* path) {
 			n.blocks[i] = -1;
 		}
 
-		dirBlock baseBlock;
+		dirDataBlk baseBlock;
 		baseBlock.inodeNums[0] = 0;
 		baseBlock.inodeNums[1] = 0;
-		strcpy(baseBlock.names[0], ".\0");
-		strcpy(baseBlock.names[1], "..\0");
+		strcpy(baseBlock.fileNames[0], ".\0");
+		strcpy(baseBlock.fileNames[1], "..\0");
 
 		for(i = 2; i < MAX_INODE; i++)
 		{
 			baseBlock.inodeNums[i] = -1;
-			strcpy(baseBlock.names[i], "DNE\0");
+			strcpy(baseBlock.fileNames[i], "INVALID\0");
 		}
 
-		// write baseBlock
-		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
-		write(fd, &baseBlock, sizeof(dirBlock));
+				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+		write(fd, &baseBlock, sizeof(dirDataBlk));
 		nextBlock++;
 		
-		// update imap
-		imap[0] = nextBlock;
+				imap[0] = nextBlock;
 
-		// write inode
-		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 		write(fd, &n, sizeof(inode));
 		nextBlock++;
 
-		// write checkpoint region
-		update_CR(0);
+				update_CR(0);
 	}
 	else
 	{
@@ -145,8 +130,7 @@ int Server_Startup(int port, char* path) {
 		read(fd, &nextBlock, sizeof(int));
 	}
 
-	//	TODO: remove comment here
-		int sd = UDP_Open(port);
+			int sd = UDP_Open(port);
 	if(sd < 0)
 	{
 		printf("Error opening socket on port %d\n", port);
@@ -216,7 +200,7 @@ int Server_Lookup(int pinum, char *name) {
 	{
 		if(parent.used[b])
 		{
-			dirBlock block;
+			dirDataBlk block;
 			lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
 			read(fd, &block, BLOCKSIZE);
 
@@ -225,7 +209,7 @@ int Server_Lookup(int pinum, char *name) {
 			{
 				if(block.inodeNums[e] != -1)
 				{
-					if(strcmp(name, block.names[e]) == 0)
+					if(strcmp(name, block.fileNames[e]) == 0)
 					{
 						return block.inodeNums[e];
 					}
@@ -254,32 +238,25 @@ int Server_Write(int inodeNum, char *buffer, int block) {
 	if(get_inode(inodeNum, &n) == -1)
 		return -1;
 	
-	if(n.type != MFS_REGULAR_FILE)								// can't write to directory
-		return -1;
+	if(n.type != MFS_REGULAR_FILE)										return -1;
 
-	if(block < 0 || block >= MAX_BLOCKS)	// check for invalid block
-		return -1;
+	if(block < 0 || block >= MAX_BLOCKS)			return -1;
 	
-	// update file size
-	n.size = (block+1)*BLOCKSIZE > n.size ? (block+1)*BLOCKSIZE : n.size;
+		n.size = (block+1)*BLOCKSIZE > n.size ? (block+1)*BLOCKSIZE : n.size;
 	n.used[block] = 1;
 	
-	// inform inode of location of new block
-	n.blocks[block] = nextBlock+1;
+		n.blocks[block] = nextBlock+1;
 
-	// write inode chunk
-	lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 	write(fd, &n, BLOCKSIZE);
 	imap[inodeNum] = nextBlock;
 	nextBlock++;
 	
-	// write buffer
-	lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+		lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 	write(fd, buffer, BLOCKSIZE);
 	nextBlock++;
 
-	// write checkpoint region
-	update_CR(inodeNum);
+		update_CR(inodeNum);
 	return 0;
 }
 
@@ -291,15 +268,12 @@ int Server_Read(int inodeNum, char *buffer, int block){
 		return -1;
 	}
 
-	if(block < 0 || block >= MAX_BLOCKS || !n.used[block])		// check for invalid block
-	{
+	if(block < 0 || block >= MAX_BLOCKS || !n.used[block])			{
 		printf("invalid block.\n");
 		return -1;
 	}
 
-	// read
-	if(n.type == MFS_REGULAR_FILE)																		// read regular file
-	{
+		if(n.type == MFS_REGULAR_FILE)																			{
 		if(lseek(fd, n.blocks[block]*BLOCKSIZE, SEEK_SET) == -1)
 		{
 			perror("Server_Read: lseek:");
@@ -312,19 +286,16 @@ int Server_Read(int inodeNum, char *buffer, int block){
 			printf("Server_Read: read failed\n");
 		}
 	}
-	else																									// read directory
-	{
-		dirBlock db;																				// read dirBlock
-		lseek(fd, n.blocks[block], SEEK_SET);
-		read(fd, &db, BLOCKSIZE);
+	else																										{
+		dirDataBlk dirBlk;																						lseek(fd, n.blocks[block], SEEK_SET);
+		read(fd, &dirBlk, BLOCKSIZE);
 
-		MFS_DirEnt_t entries[MAX_INODE];											// convert dirBlock to MRS_DirEnt_t
-		int i;
+		MFS_DirEnt_t entries[MAX_INODE];													int i;
 		for(i = 0; i < MAX_INODE; i++)
 		{
 			MFS_DirEnt_t entry ;
-			strcpy(entry.name, db.names[i]);
-			entry.inodeNum = db.inodeNums[i];
+			strcpy(entry.name, dirBlk.fileNames[i]);
+			entry.inodeNum = dirBlk.inodeNums[i];
 			entries[i] = entry;
 		}
 
@@ -334,8 +305,7 @@ int Server_Read(int inodeNum, char *buffer, int block){
 }
 
 int Server_Creat(int pinum, int type, char *name){
-	if(Server_Lookup(pinum, name) != -1)					// if the file already exists, return success
-		return 0;
+	if(Server_Lookup(pinum, name) != -1)							return 0;
 
 	inode parent;
 	if(get_inode(pinum, &parent) == -1)
@@ -359,7 +329,7 @@ int Server_Creat(int pinum, int type, char *name){
 		return -1;
 	}
 
-	dirBlock block;
+	dirDataBlk block;
 	for(int b = 0; b < MAX_BLOCKS; b++)
 	{
 		if(parent.used[b])
@@ -375,7 +345,7 @@ int Server_Creat(int pinum, int type, char *name){
 					write(fd, &parent, BLOCKSIZE);
 
 					block.inodeNums[e] = inodeNum;
-					strcpy(block.names[e], name);
+					strcpy(block.fileNames[e], name);
 					lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
 					write(fd, &block, BLOCKSIZE);
 
@@ -416,8 +386,7 @@ int Server_Creat(int pinum, int type, char *name){
 		}
 		else
 		{
-			// make new block, then repeat loop on this block
-			int bl = build_dir_block(0, inodeNum, -1);
+						int bl = build_dir_block(0, inodeNum, -1);
 			parent.size += BLOCKSIZE;
 
 			parent.used[b] = 1;
@@ -431,48 +400,40 @@ int Server_Creat(int pinum, int type, char *name){
 
 int Server_Unlink(int pinum, char *name){
 	
-	inode toRemove;					// to be removed
-	inode parent;						// parent of toRemove
+	inode toRemove;						inode parent;						
+	if(get_inode(pinum, &parent) == -1)					return -1;
 
-	if(get_inode(pinum, &parent) == -1)			// parent directory doesn't exist; return failure
-		return -1;
+	int inodeNum = Server_Lookup(pinum, name);		if(get_inode(inodeNum, &toRemove) == -1)				return 0;
 
-	int inodeNum = Server_Lookup(pinum, name);	// inodeNum of toRemove
-	if(get_inode(inodeNum, &toRemove) == -1)		// toRemove doesn't exist; return success
-		return 0;
-
-	// if toRemove is a directory, make sure it's empty
-	if(toRemove.type == MFS_DIRECTORY)
+		if(toRemove.type == MFS_DIRECTORY)
 	{
 		int b;
 		for(b = 0; b < MAX_BLOCKS; b++)
 		{
 			if(toRemove.used[b])
 			{
-				dirBlock block;
+				dirDataBlk block;
 				lseek(fd, toRemove.blocks[b]*BLOCKSIZE, SEEK_SET);
 				read(fd, &block, BLOCKSIZE);
 
 				int e;
 				for(e = 0; e < MAX_INODE; e++)
 				{
-					if(block.inodeNums[e] != -1 && strcmp(block.names[e], ".") != 0 && strcmp(block.names[e], "..") != 0)
+					if(block.inodeNums[e] != -1 && strcmp(block.fileNames[e], ".") != 0 && strcmp(block.fileNames[e], "..") != 0)
 					{
-						return -1;	// found file in toRemove
-					}
+						return -1;						}
 				}
 			}
 		}
 	}
 	
-	// remove toRemove from parent
-	int found = 0;
+		int found = 0;
 	int b;
 	for(b = 0; b < MAX_BLOCKS && !found; b++)
 	{
 		if(parent.used[b])
 		{
-			dirBlock block;
+			dirDataBlk block;
 			lseek(fd, parent.blocks[b]*BLOCKSIZE, SEEK_SET);
 			read(fd, &block, BLOCKSIZE);
 
@@ -481,10 +442,10 @@ int Server_Unlink(int pinum, char *name){
 			{
 				if(block.inodeNums[e] != -1)
 				{
-					if(strcmp(name, block.names[e]) == 0)
+					if(strcmp(name, block.fileNames[e]) == 0)
 					{
 						block.inodeNums[e] = -1;
-						strcpy(block.names[e], "DNE");
+						strcpy(block.fileNames[e], "INVALID");
 						found = 1;
 					}
 				}
@@ -492,26 +453,22 @@ int Server_Unlink(int pinum, char *name){
 
 			if(found)
 			{
-				// rewrite this block of parent
-				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
+								lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 				write(fd, &block, BLOCKSIZE);
 				nextBlock++;
 
-				// inform parent inode of new block location
-				parent.blocks[b] = nextBlock-1;
+								parent.blocks[b] = nextBlock-1;
 				lseek(fd, nextBlock*BLOCKSIZE, SEEK_SET);
 				write(fd, &parent, BLOCKSIZE);
 				nextBlock++;
 
-				// update imap
-				imap[pinum] = nextBlock-1;
+								imap[pinum] = nextBlock-1;
 				update_CR(pinum);
 			}
 		}
 	}
 
-	// remove toRemove from CR
-	imap[inodeNum] = -1;
+		imap[inodeNum] = -1;
 	update_CR(inodeNum);
 
 	return 0;
@@ -519,10 +476,8 @@ int Server_Unlink(int pinum, char *name){
 
 int Server_Shutdown()
 {
-	fsync(fd);			// not sure if this is necessary
-	exit(0);
-	return -1;	// if we reach this line of code, there was an error
-}
+	fsync(fd);				exit(0);
+	return -1;	}
 
 int main(int argc, char *argv[])
 {

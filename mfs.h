@@ -1,13 +1,13 @@
 #define MFS_DIRECTORY    (0)
 #define MFS_REGULAR_FILE (1)
 #define MFS_BLOCK_SIZE   (4096)
-#define MAX_BLOCKS 	14				// max number of blocks per inode
-#define NINODES 	4096			// max number of inodes in system
-#define CRSIZE		6					// size (in blocks) of checkpoint region TODO
-#define BLOCKSIZE	4096			// size (in bytes) of one block
-#define DIRENTRYSIZE	32		// size (in bytes) of a directory entry
-#define MAX_INODE	(BLOCKSIZE/DIRENTRYSIZE)	// number of entries per block in a directory
-#define MAX_LEN	28			// length (in bytes) of a directory entry name
+#define MAX_BLOCKS 	14				
+#define NINODES 	4096			
+#define CRSIZE		6					
+#define BLOCKSIZE	4096			
+#define DIRENTRYSIZE	32		
+#define MAX_INODE	(BLOCKSIZE/DIRENTRYSIZE)	
+#define MAX_LEN	28			
 #define BUFFER_SIZE (4096)
 #define MAX_NAME_SIZE (28)
 
@@ -23,15 +23,10 @@ enum message {
 };
 
 typedef struct __MFS_Stat_t {
-    int type;   // MFS_DIRECTORY or MFS_REGULAR
-    int size;   // bytes
-    // note: no permissions, access times, etc.
-} MFS_Stat_t;
+    int type;       int size;       } MFS_Stat_t;
 
 typedef struct __MFS_DirEnt_t {
-    char name[28];  // up to 28 bytes of name in directory (including \0)
-    int  inodeNum;      // inode number of entry (-1 means entry not used)
-} MFS_DirEnt_t;
+    char name[28];      int  inodeNum;      } MFS_DirEnt_t;
 
 typedef struct __dataPkt {
 	enum message message;

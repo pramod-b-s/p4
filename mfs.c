@@ -109,8 +109,7 @@ int MFS_Write(int inodeNum, char *buffer, int block){
 	dataPkt responsePacket;
 
 	sentPacket.inodeNum = inodeNum;
-	//strncpy(sentPacket.buffer, buffer, BUFFER_SIZE);
-	memcpy(sentPacket.buffer, buffer, BUFFER_SIZE);
+		memcpy(sentPacket.buffer, buffer, BUFFER_SIZE);
 	sentPacket.block = block;
 	sentPacket.message = PAK_WRITE;
 	
