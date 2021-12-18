@@ -12,7 +12,7 @@ char* serverHostname;
 int serverPort;
 int initialized = 0;
 
-int sendPacket(char *hostname, int port, Net_Packet *sentPacket, Net_Packet *responsePacket, int maxTries)
+int sendPacket(char *hostname, int port, dataPkt *sentPacket, dataPkt *responsePacket, int maxTries)
 {
     int sd = UDP_Open(0);
     if(sd < -1)
@@ -37,10 +37,10 @@ int sendPacket(char *hostname, int port, Net_Packet *sentPacket, Net_Packet *res
     while(1) {
         FD_ZERO(&rfds);
         FD_SET(sd,&rfds);
-        UDP_Write(sd, &addr, (char*)sentPacket, sizeof(Net_Packet));
+        UDP_Write(sd, &addr, (char*)sentPacket, sizeof(dataPkt));
         if(select(sd+1, &rfds, NULL, NULL, &tv))
         {
-            rc = UDP_Read(sd, &addr2, (char*)responsePacket, sizeof(Net_Packet));
+            rc = UDP_Read(sd, &addr2, (char*)responsePacket, sizeof(dataPkt));
             if(rc > 0)
             {
                 UDP_Close(sd);
@@ -70,8 +70,8 @@ int MFS_Lookup(int pinum, char *name){
 	if(strlen(name) > 27)
 		return -1;
 
-	Net_Packet sentPacket;
-	Net_Packet responsePacket;
+	dataPkt sentPacket;
+	dataPkt responsePacket;
 
 	sentPacket.inum = pinum;
 	sentPacket.message = PAK_LOOKUP;
@@ -88,8 +88,8 @@ int MFS_Stat(int inum, MFS_Stat_t *m) {
 	if(!initialized)
 		return -1;
 
-	Net_Packet sentPacket;
-	Net_Packet responsePacket;
+	dataPkt sentPacket;
+	dataPkt responsePacket;
 
 	sentPacket.inum = inum;
 	sentPacket.message = PAK_STAT;
@@ -105,8 +105,8 @@ int MFS_Write(int inum, char *buffer, int block){
 	if(!initialized)
 		return -1;
 	
-	Net_Packet sentPacket;
-	Net_Packet responsePacket;
+	dataPkt sentPacket;
+	dataPkt responsePacket;
 
 	sentPacket.inum = inum;
 	//strncpy(sentPacket.buffer, buffer, BUFFER_SIZE);
@@ -124,8 +124,8 @@ int MFS_Read(int inum, char *buffer, int block){
 	if(!initialized)
 		return -1;
 	
-	Net_Packet sentPacket;
-	Net_Packet responsePacket;
+	dataPkt sentPacket;
+	dataPkt responsePacket;
 
 	sentPacket.inum = inum;
 	sentPacket.block = block;
@@ -147,8 +147,8 @@ int MFS_Creat(int pinum, int type, char *name){
 	if(strlen(name) > 27)
 		return -1;
 
-	Net_Packet sentPacket;
-	Net_Packet responsePacket;
+	dataPkt sentPacket;
+	dataPkt responsePacket;
 
 	sentPacket.inum = pinum;
 	sentPacket.type = type;
@@ -169,8 +169,8 @@ int MFS_Unlink(int pinum, char *name){
 	if(strlen(name) > 27)
 		return -1;
 	
-	Net_Packet sentPacket;
-	Net_Packet responsePacket;
+	dataPkt sentPacket;
+	dataPkt responsePacket;
 
 	sentPacket.inum = pinum;
 	sentPacket.message = PAK_UNLINK;
@@ -183,7 +183,7 @@ int MFS_Unlink(int pinum, char *name){
 }
 
 int MFS_Shutdown(){
-	Net_Packet sentPacket, responsePacket;
+	dataPkt sentPacket, responsePacket;
 	sentPacket.message = PAK_SHUTDOWN;
 
 

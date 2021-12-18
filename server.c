@@ -44,7 +44,7 @@ int build_dir_block(int firstBlock, int inum, int pinum)
 {
 	dirBlock db;
 	int i;
-	for(i = 0; i < NENTRIES; i++)
+	for(i = 0; i < MAX_INODE; i++)
 	{
 		db.inums[i] = -1;
 		strcpy(db.names[i], "DNE\0");
@@ -104,7 +104,7 @@ int Server_Startup(int port, char* path) {
 		n.type = MFS_DIRECTORY;
 		n.used[0] = 1;
 		n.blocks[0] = nextBlock;
-		for(i = 1; i < NBLOCKS; i++)
+		for(i = 1; i < MAX_BLOCKS; i++)
 		{
 			n.used[i] = 0;
 			n.blocks[i] = -1;
@@ -116,7 +116,7 @@ int Server_Startup(int port, char* path) {
 		strcpy(baseBlock.names[0], ".\0");
 		strcpy(baseBlock.names[1], "..\0");
 
-		for(i = 2; i < NENTRIES; i++)
+		for(i = 2; i < MAX_INODE; i++)
 		{
 			baseBlock.inums[i] = -1;
 			strcpy(baseBlock.names[i], "DNE\0");
@@ -156,10 +156,10 @@ int Server_Startup(int port, char* path) {
     printf("Starting server...\n");
     while (1) {
 		struct sockaddr_in s;
-		Net_Packet packet;
-		int rc = UDP_Read(sd, &s, (char *)&packet, sizeof(Net_Packet));
+		dataPkt packet;
+		int rc = UDP_Read(sd, &s, (char *)&packet, sizeof(dataPkt));
 		if (rc > 0) {
-		    Net_Packet responsePacket;
+		    dataPkt responsePacket;
 
 		    switch(packet.message){
 		    		
@@ -195,7 +195,7 @@ int Server_Startup(int port, char* path) {
 		    }
 
 		    responsePacket.message = PAK_RESPONSE;
-		    rc = UDP_Write(sd, &s, (char*)&responsePacket, sizeof(Net_Packet));
+		    rc = UDP_Write(sd, &s, (char*)&responsePacket, sizeof(dataPkt));
 		    if(packet.message == PAK_SHUTDOWN)
 		    	Server_Shutdown();
 		}
@@ -212,7 +212,7 @@ int Server_Lookup(int pinum, char *name) {
 	}
 
 	int b;
-	for(b = 0; b < NBLOCKS; b++)
+	for(b = 0; b < MAX_BLOCKS; b++)
 	{
 		if(parent.used[b])
 		{
@@ -221,7 +221,7 @@ int Server_Lookup(int pinum, char *name) {
 			read(fd, &block, BLOCKSIZE);
 
 			int e;
-			for(e = 0; e < NENTRIES; e++)
+			for(e = 0; e < MAX_INODE; e++)
 			{
 				if(block.inums[e] != -1)
 				{
@@ -257,7 +257,7 @@ int Server_Write(int inum, char *buffer, int block) {
 	if(n.type != MFS_REGULAR_FILE)								// can't write to directory
 		return -1;
 
-	if(block < 0 || block >= NBLOCKS)	// check for invalid block
+	if(block < 0 || block >= MAX_BLOCKS)	// check for invalid block
 		return -1;
 	
 	// update file size
@@ -291,7 +291,7 @@ int Server_Read(int inum, char *buffer, int block){
 		return -1;
 	}
 
-	if(block < 0 || block >= NBLOCKS || !n.used[block])		// check for invalid block
+	if(block < 0 || block >= MAX_BLOCKS || !n.used[block])		// check for invalid block
 	{
 		printf("invalid block.\n");
 		return -1;
@@ -318,9 +318,9 @@ int Server_Read(int inum, char *buffer, int block){
 		lseek(fd, n.blocks[block], SEEK_SET);
 		read(fd, &db, BLOCKSIZE);
 
-		MFS_DirEnt_t entries[NENTRIES];											// convert dirBlock to MRS_DirEnt_t
+		MFS_DirEnt_t entries[MAX_INODE];											// convert dirBlock to MRS_DirEnt_t
 		int i;
-		for(i = 0; i < NENTRIES; i++)
+		for(i = 0; i < MAX_INODE; i++)
 		{
 			MFS_DirEnt_t entry ;
 			strcpy(entry.name, db.names[i]);
@@ -328,7 +328,7 @@ int Server_Read(int inum, char *buffer, int block){
 			entries[i] = entry;
 		}
 
-		memcpy(buffer, entries, sizeof(MFS_DirEnt_t)*NENTRIES);
+		memcpy(buffer, entries, sizeof(MFS_DirEnt_t)*MAX_INODE);
 	}
 	return 0;
 }
@@ -361,7 +361,7 @@ int Server_Creat(int pinum, int type, char *name){
 
 	// put inode into parent directory
 	int b, e; dirBlock block;
-	for(b = 0; b < NBLOCKS; b++)
+	for(b = 0; b < MAX_BLOCKS; b++)
 	{
 		if(parent.used[b])
 		{
@@ -373,7 +373,7 @@ int Server_Creat(int pinum, int type, char *name){
 				//printf("About to examine the following block:\n");
 				//print_dirBlock(parent.blocks[b]);
 			}
-			for(e = 0; e < NENTRIES; e++)
+			for(e = 0; e < MAX_INODE; e++)
 			{
 				if(block.inums[e] == -1)
 				{
@@ -411,7 +411,7 @@ int Server_Creat(int pinum, int type, char *name){
 	inode n;
 	n.inum = inum;
 	n.size = 0;
-	for(i = 0; i < NBLOCKS; i++)
+	for(i = 0; i < MAX_BLOCKS; i++)
 	{
 		n.used[i] = 0;
 		n.blocks[i] = -1;
@@ -462,7 +462,7 @@ int Server_Unlink(int pinum, char *name){
 	if(toRemove.type == MFS_DIRECTORY)
 	{
 		int b;
-		for(b = 0; b < NBLOCKS; b++)
+		for(b = 0; b < MAX_BLOCKS; b++)
 		{
 			if(toRemove.used[b])
 			{
@@ -471,7 +471,7 @@ int Server_Unlink(int pinum, char *name){
 				read(fd, &block, BLOCKSIZE);
 
 				int e;
-				for(e = 0; e < NENTRIES; e++)
+				for(e = 0; e < MAX_INODE; e++)
 				{
 					if(block.inums[e] != -1 && strcmp(block.names[e], ".") != 0 && strcmp(block.names[e], "..") != 0)
 					{
@@ -485,7 +485,7 @@ int Server_Unlink(int pinum, char *name){
 	// remove toRemove from parent
 	int found = 0;
 	int b;
-	for(b = 0; b < NBLOCKS && !found; b++)
+	for(b = 0; b < MAX_BLOCKS && !found; b++)
 	{
 		if(parent.used[b])
 		{
@@ -494,7 +494,7 @@ int Server_Unlink(int pinum, char *name){
 			read(fd, &block, BLOCKSIZE);
 
 			int e;
-			for(e = 0; e < NENTRIES && !found; e++)
+			for(e = 0; e < MAX_INODE && !found; e++)
 			{
 				if(block.inums[e] != -1)
 				{

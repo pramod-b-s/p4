@@ -2,13 +2,13 @@ typedef struct __inode {
 	int inum;
 	int size;								// number of bytes in the file. a multiple of BLOCKSIZE
 	int type;
-	int used[NBLOCKS];			// used[i] is true if blocks[i] is used
-	int blocks[NBLOCKS];		// address in memory of each block
+	int used[MAX_BLOCKS];			// used[i] is true if blocks[i] is used
+	int blocks[MAX_BLOCKS];		// address in memory of each block
 } inode;
 
 typedef struct __dirBlock {
-	char names[NENTRIES][NAMELENGTH];
-	int  inums[NENTRIES];
+	char names[MAX_INODE][MAX_LEN];
+	int  inums[MAX_INODE];
 } dirBlock;
 
 // Server functions
