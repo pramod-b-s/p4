@@ -11,7 +11,7 @@
 
 int sendToHost(char *hostname, int port, dataPkt *sentPacket, dataPkt *responsePacket, int maxTries)
 {
-	int sd = UDP_Open(7777);
+	int sd = UDP_Open(0);
 	if (sd < -1)
 	{
 		perror("Error opening connection.\n");
