@@ -31,7 +31,7 @@ int sendPacket(char *hostname, int port, Net_Packet *sentPacket, Net_Packet *res
 
     fd_set rfds;
     struct timeval tv;
-    tv.tv_sec=3;
+    tv.tv_sec=1;
     tv.tv_usec=0;
 
     while(1) {

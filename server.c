@@ -16,7 +16,6 @@
 typedef struct __buf {
 	char string [BLOCKSIZE/sizeof(char)];
 } buf;
-int newFS;
 
 int imap[NINODES];			// block number of each inode
 int nextBlock;					// next block in the address space to be written
@@ -82,8 +81,6 @@ int Server_Startup(int port, char* path) {
 	
 	if((fd = open(path, O_RDWR)) == -1)
 	{
-		newFS = 1;
-
 		// create new file system
 		fd = open(path, O_RDWR|O_CREAT|O_TRUNC, S_IRWXU);
 		if(fd == -1)
@@ -142,8 +139,6 @@ int Server_Startup(int port, char* path) {
 	}
 	else
 	{
-		newFS = 0;
-
 		lseek(fd, 0, SEEK_SET);
 		read(fd, imap, sizeof(int)*NINODES);
 		read(fd, &nextBlock, sizeof(int));
