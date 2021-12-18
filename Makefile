@@ -19,7 +19,7 @@ libmfs.so : mfs.o ${DEPS}
 	${CC} ${CFLAGS} -shared -fPIC -Wl,-soname,libmfs.so -o libmfs.so mfs.o udp.c -lc
 
 clean:
-	rm -f ./client ./server *.o libmfs.so runtests.log
+	rm -f ./client ./server *.o libmfs.so
 
 mfs.o : ${LIB} Makefile
 	${CC} ${CFLAGS} -c -fPIC ${LIB}
