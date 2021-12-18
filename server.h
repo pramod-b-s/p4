@@ -1,10 +1,9 @@
 #define MAX_DIRECT_PTRS 	14				
-#define MAX_NUM_INODES 	4096			
-#define CRSIZE		6					
-#define BLOCKSIZE	4096			
-#define DIRENTRYSIZE	32		
-#define MAX_INODE	(BLOCKSIZE/DIRENTRYSIZE)	
-#define MAX_LEN	28			
+#define MAX_NUM_INODES 	4096				
+#define MAX_BLK_SIZE	4096			
+#define MAX_DIR_ENTRY_SIZE	32		
+#define MAX_INODE	(MAX_BLK_SIZE/MAX_DIR_ENTRY_SIZE)	
+#define MAX_NAME_LEN	28		
 
 
 int inodeMap[MAX_NUM_INODES];			
@@ -20,7 +19,7 @@ typedef struct __inode {
 } inode;
 
 typedef struct __dirDataBlk {
-	char fileNames[MAX_INODE][MAX_LEN];
+	char fileNames[MAX_INODE][MAX_NAME_LEN];
 	int  inodeNums[MAX_INODE];
 } dirDataBlk;
 
